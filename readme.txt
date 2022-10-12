@@ -76,11 +76,11 @@ M = 2^20, G = 2^30.
 
 Demo:
 -----
-Download genome archives: 
-Homo sapiens ftp://hgdownload.cse.ucsc.edu/goldenPath/hg19/bigZips/chromFa.tar.gz
-Mus musculus ftp://hgdownload.cse.ucsc.edu/goldenPath/mm10/bigZips/chromFa.tar.gz
+Download and ungzip the genome archives: 
+Homo sapiens https://hgdownload.cse.ucsc.edu/goldenPath/hg19/bigZips/chromFa.tar.gz
+Mus musculus https://hgdownload.cse.ucsc.edu/goldenPath/mm10/bigZips/chromFa.tar.gz
 
-Unzip files into separate directories and concatenate single sequence files info one file, e.g.:
+Ungzip files into separate directories and concatenate single sequence files info one file, e.g.:
 In Windows:
 type mus\*.fa > mus.all.fa
 type hum\*.fa > hum.all.fa
