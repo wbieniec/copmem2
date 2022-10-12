@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+    <LocalDebuggerCommandArguments>-l 200 -t 8  -o hp100.txt c:\mem\datasets\hum.all.fa c:\mem\datasets\panTro3.fa</LocalDebuggerCommandArguments>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+    <LocalDebuggerCommandArguments>-l 100 -t 1  -o hm100.txt c:\mem\datasets\hum.all.fa c:\mem\datasets\mus.all.fa</LocalDebuggerCommandArguments>
+  </PropertyGroup>
+</Project>

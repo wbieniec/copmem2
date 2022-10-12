@@ -1,0 +1,55 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="CopMEM2.cpp" />
+    <ClCompile Include="..\common\city.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\xxhash.c">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\StringUtils.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\StopWatch.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\metrohash64.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\fmt\format.cc">
+      <Filter>fmt</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\common\StringUtils.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\StopWatch.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\kxsort.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\Hashes.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\fmt\core.h">
+      <Filter>fmt</Filter>
+    </ClInclude>
+    <ClInclude Include="..\fmt\format.h">
+      <Filter>fmt</Filter>
+    </ClInclude>
+    <ClInclude Include="..\fmt\format-inl.h">
+      <Filter>fmt</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="common">
+      <UniqueIdentifier>{22107579-e21f-4566-9095-3e2f841db9cd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="fmt">
+      <UniqueIdentifier>{f7013536-9423-41a4-9874-5d04fb6889c0}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
