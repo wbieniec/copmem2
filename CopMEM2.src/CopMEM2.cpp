@@ -7,7 +7,7 @@
 *  (k1 and k2) are coprime, hence the name.                         *
 *                                                                   *
 *                                                                   *
-*  Copyright (c) 2018-2022 Szymon Grabowski and Wojciech Bieniecki  *
+*  Copyright (c) 2018-2023 Szymon Grabowski and Wojciech Bieniecki  *
 *  All rights reserved                                              *
 *                                                                   *
 *  This program is free software: you can redistribute it and/or    *
@@ -60,9 +60,10 @@ using namespace std;
 #include "../common/StringUtils.h"
 
 // those define's are only for development and debugging
-#define radixsort 1
+#define radixsort 1  //std::sort==0 , radix==1 , -1 == nosort
 #define stdfmt 0
 #define predsv 1
+#define dumptimer 0
 
 
 /////////////////// OWN TYPES ///////////////////////////
@@ -181,7 +182,7 @@ constexpr int MAX_THREADS = 64;
 constexpr uint32_t MAX_MULTI = 512;
 constexpr char REF_PADDING_CHAR = 123;
 constexpr char Q_PADDING_CHAR = 125;
-constexpr size_t DEF_MATCH_BLOCK_SIZE = 1 << 21;
+constexpr size_t DEF_MATCH_BLOCK_SIZE = 1 << 21; //21 is default
 constexpr size_t MAX_BLOCK_SIZE = 1ULL << 31;
 constexpr size_t MATCHES_SORT_T1 = 1ULL << 10; //up to MATCHES_SORT_T1 items are sorted with std::sort
 
@@ -220,6 +221,7 @@ bool blockSortBreakFlag[MAX_THREADS];
 vector< MatchTuple<uint32_t>> matchesCopy[MAX_THREADS];
 
 verbosity isVerbose; //quiet, normal or verbose mode
+bool ignoreLowercaseBases; // true = acgt --> N, false = acgt --> ACGT
 RC isRC;
 bool isMemFru;
 vector<char*> blockBuffer; //buffer used in buffered reading of some Query sequences (vector of these for supporting threads)
@@ -230,6 +232,10 @@ SequenceVector q_SV;
 SequenceVectorR r_SV_pred;
 size_t min_diff;
 size_t min_diff_bitshift;
+#endif
+#if dumptimer == 1
+CStopWatch  sortingWatch[MAX_THREADS];
+CStopWatch  dumpWatch[MAX_THREADS];
 #endif
 
 
@@ -255,6 +261,7 @@ void initDefaults() {
 	isVerbose = verbosity::v1;
 	v1logger = &cout;
 	v2logger = &null_stream;
+	ignoreLowercaseBases = false;
 	//ios_base::sync_with_stdio(false); //may increase I/O operations speed
 
 	//copy_.resize(DEF_MATCH_BLOCK_SIZE);  // 17.08.2022
@@ -270,7 +277,7 @@ void initGlobals() {
 
 
 void displayHelp(const char* progName) {
-	cout << "copMEM 2.0, by Szymon Grabowski and Wojciech Bieniecki, October 2022." << endl;
+	cout << "copMEM 2.1, by Szymon Grabowski and Wojciech Bieniecki, April 2023." << endl;
 	cout << "Usage: " << progName << " [-l n] [-H l] [-K n] [-e] [-t T] [-v|-q] [-mf]|[-b]|[-r] <-o MEMs_file> <Ref_genome> <Query_genome>\n";
 	cout << "Attention: -o is a required parameter. l is optional (default: 100).\n";
 	cout << "-o MEMs_file - the output file with matches.\n";
@@ -296,6 +303,7 @@ void displayHelp2() {
 	cout << "-hash_bits n - manually set a length of the hash. Valid values: 28, 29, 30.\n";
 	cout << "-fbr 1|2 - manually force big Ref - long datatypes for processing. 1 - big, 2 - huge.\n";
 	cout << "-lm n - long MEM threshold. Default is " << LONG_MEM << ".\n";
+	cout << "-ilb - ignore lowercase bases. Not used by default (i.e., lowercase bases are NOT ignored).\n";
 }
 
 
@@ -311,7 +319,8 @@ void displayParams() {
 	cout << "Memory frugal mode = " << (isMemFru ? "Yes" : "No") << endl;
 	cout << "Reverse Complement = " << ((isRC == RC::both) ? "Both" : (isRC == RC::yes) ? "Yes" : "No") << endl;
 	cout << "Threads = " << nThreads << endl;
-	cout << "long mem detection = " << LONG_MEM << endl;
+	cout << "Long MEM detection = " << LONG_MEM << endl;
+	cout << "Ignore lowercase bases = " << ((ignoreLowercaseBases == true) ? "true" : "false") << endl;
 
 	cout << "Hash function: ";
 	for (int k = 32; k <= 96; k++) {
@@ -571,6 +580,9 @@ void processCmd(int argc, char* argv[]) {
 				exit(1);
 			}
 		}
+		if (arg == "-ilb") {
+			ignoreLowercaseBases = true;
+		}
 
 	}
 
@@ -750,6 +762,7 @@ void gencum(GenomeData& genome, MyUINT2* cum) {
 
 	for (t = 0; t < nThreads - 1; t++)
 		th[t].join();
+	delete[] th;
 
 	//////////////////// processing the end part of R //////////////////////
 	partial_sum(cum, cum + HASH_SIZE + 2, cum);
@@ -1046,6 +1059,9 @@ void postProcess(int thID, vector<MatchTuple<MyUINT>>& matches, string& matchesB
 		displayMatchInfo(seqName, 0);
 		return;
 	}
+#if dumptimer == 1
+	sortingWatch[thID].resume();
+#endif
 
 		if (matches.size() > 2) {
 			auto itFirstMatch = matches.begin() + 1;
@@ -1068,10 +1084,17 @@ void postProcess(int thID, vector<MatchTuple<MyUINT>>& matches, string& matchesB
 				else
 					std::sort(itFirstMatch, itLastMatch);
 			}
-#else
+#elif radixsort == 0
 			std::sort(itFirstMatch, itLastMatch);
+#else
+			//no sort. Duplicates possible
 #endif
 		}
+
+#if dumptimer == 1
+		sortingWatch[thID].stop();
+#endif
+
 	//now matches are sorted. If within OVERLAP there is any less than the guard match, they cannot be properly sorted. Procedure must terminate
 //Enough to examine the first one.
 	if (matches[0] >= matches[1]) {
@@ -1079,6 +1102,9 @@ void postProcess(int thID, vector<MatchTuple<MyUINT>>& matches, string& matchesB
 		return;
 	}
 
+#if dumptimer == 1
+	dumpWatch[thID].resume();
+#endif
 	SequenceItem seq1item;
 	MatchTuple<MyUINT> prev_match = matches[1];
 #if predsv == 1
@@ -1109,6 +1135,10 @@ void postProcess(int thID, vector<MatchTuple<MyUINT>>& matches, string& matchesB
 	displayMatchInfo(seqName, matchcount);
 	matches.erase(matches.begin() + 1, matches.end());
 	matches[0] = { 0,0,0 };
+#if dumptimer == 1
+	dumpWatch[thID].stop();
+#endif
+
 }
 
 
@@ -1123,6 +1153,9 @@ void postProcessPartial(int thID, vector<MatchTuple<MyUINT>>& matches, MatchTupl
 		return;
 	if (blockSortBreakFlag[thID] == true)
 		return;
+#if dumptimer == 1
+	sortingWatch[thID].resume();
+#endif
 
 	size_t OVERLAP = 3ULL * MATCH_BLOCK_SIZE[thID] / 4ULL;
 	auto itFirstMatch = matches.begin() + 1;
@@ -1144,8 +1177,14 @@ void postProcessPartial(int thID, vector<MatchTuple<MyUINT>>& matches, MatchTupl
 		else
 			std::sort(itFirstMatch, itLastMatch);
 	}
-#else
+#elif radixsort == 0
 	std::sort(itFirstMatch, itLastMatch);
+#else
+	//no sort. Duplicates possible
+#endif
+
+#if dumptimer == 1
+	sortingWatch[thID].stop();
 #endif
 
 	//now matches are sorted. If within OVERLAP there is any less than the guard match, they cannot be properly sorted. Procedure must terminate
@@ -1154,6 +1193,10 @@ void postProcessPartial(int thID, vector<MatchTuple<MyUINT>>& matches, MatchTupl
 		blockSortBreakFlag[thID] = true;
 		return;
 	}
+#if dumptimer == 1
+	dumpWatch[thID].resume();
+#endif
+
 #if predsv == 1
 	SequenceItem seq1item = findSeqDesc(get<1>(matches[1]), r_SV_pred);
 #else
@@ -1182,6 +1225,9 @@ void postProcessPartial(int thID, vector<MatchTuple<MyUINT>>& matches, MatchTupl
 
 	matches[0] = matches[i - 1]; //update guard match. On next part, the last erased should not be greater as the guard.
 	matches.erase(matches.begin() + 1, matches.begin() + i);
+#if dumptimer == 1
+	dumpWatch[thID].stop();
+#endif
 }
 
 
@@ -1636,44 +1682,86 @@ GenomeData readMultiFasta(string fn, const char paddingChar, bool removeNs, geno
 	char* src = gen;
 
 	char tempLine[512];  // FASTA lines shouldn't be that long (even 128 should be ok)
+	if (ignoreLowercaseBases == false) {
+		while (true) {
+			if (*src == beginChar) {
+				size_t idx = 0;
+				while (*src != eolChar1 && *src != eolChar2 && *src != ' ' && *src != terminatorChar) {
+					tempLine[idx] = *src++;
+					++idx;
+				}
+				tempLine[idx] = 0;
+				seq.push_back({ tempLine + 1, (dst - gen) });  // + 1, as we omit the starting '>'
+															   //search for EOL
+				while (*src != eolChar1 && *src != eolChar2)
+					src++;
 
-	while (true) {
-		if (*src == beginChar) {
-			size_t idx = 0;
-			while (*src != eolChar1 && *src != eolChar2 && *src != ' ' && *src != terminatorChar) {
-				tempLine[idx] = *src++;
-				++idx;
+				*dst++ = paddingChar;
 			}
-			tempLine[idx] = 0;
-			seq.push_back({ tempLine + 1, (dst - gen) });  // + 1, as we omit the starting '>'
-														   //search for EOL
-			while (*src != eolChar1 && *src != eolChar2)
-				src++;
+			else {
+				while (*src == eolChar1 || *src == eolChar2) {
+					++src;
+				}
+				if (*src == beginChar)
+					continue;
+				if (*src == terminatorChar)
+					break;
 
-			*dst++ = paddingChar;
-		}
-		else {
-			while (*src == eolChar1 || *src == eolChar2) {
-				++src;
-			}
-			if (*src == beginChar)
-				continue;
-			if (*src == terminatorChar)
-				break;
-
-			uint64_t temp2;
-			memcpy(&temp2, src, 8);
-			while ((temp2 & 0x4040404040404040) == 0x4040404040404040) {
-				temp2 = temp2 & 0xDFDFDFDFDFDFDFDF;
-				memcpy(dst, &temp2, 8);
-				dst += 8;
-				src += 8;
+				uint64_t temp2;
 				memcpy(&temp2, src, 8);
-			}
-			while (((*src) & (char)0x40) == (char)0x40) {
-				*dst++ = (*src++) & (char)0xDF;
+				while ((temp2 & 0x4040404040404040) == 0x4040404040404040) {
+					temp2 = temp2 & 0xDFDFDFDFDFDFDFDF;
+					memcpy(dst, &temp2, 8);
+					dst += 8;
+					src += 8;
+					memcpy(&temp2, src, 8);
+				}
+				while (((*src) & (char)0x40) == (char)0x40) {
+					*dst++ = (*src++) & (char)0xDF;
+				}
 			}
 		}
+	}
+	else {
+		while (true) {
+			if (*src == beginChar) {
+				size_t idx = 0;
+				while (*src != eolChar1 && *src != eolChar2 && *src != ' ' && *src != terminatorChar) {
+					tempLine[idx] = *src++;
+					++idx;
+				}
+				tempLine[idx] = 0;
+				seq.push_back({ tempLine + 1, (dst - gen) });  // + 1, as we omit the starting '>'
+															   //search for EOL
+				while (*src != eolChar1 && *src != eolChar2)
+					src++;
+
+				*dst++ = paddingChar;
+			}
+			else {
+				while (*src == eolChar1 || *src == eolChar2) {
+					++src;
+				}
+				if (*src == beginChar)
+					continue;
+				if (*src == terminatorChar)
+					break;
+
+				uint64_t temp2;
+				memcpy(&temp2, src, 8);
+				while ((temp2 & 0x4040404040404040) == 0x4040404040404040) {
+					//temp2 = temp2 & 0xDFDFDFDFDFDFDFDF;
+					memcpy(dst, &temp2, 8);
+					dst += 8;
+					src += 8;
+					memcpy(&temp2, src, 8);
+				}
+				while (((*src) & (char)0x40) == (char)0x40) {
+					//*dst++ = (*src++) & (char)0xDF;
+					*dst++ = *src++;
+				}
+			}
+		}		
 	}
 
 	memset(dst, paddingChar, N + paddingSize - (dst - gen));
@@ -1685,23 +1773,23 @@ GenomeData readMultiFasta(string fn, const char paddingChar, bool removeNs, geno
 	size_t nThreads2 = (nThreads == 1 ? 1 : 2);  // protects from memory congestion (?)
 	const size_t part_size = (dst - gen) / nThreads2;
 	thread* th = new thread[nThreads2];
+		
+	vector<char>badSymbols;
+
+	if (ignoreLowercaseBases)
+		badSymbols = {'a', 'c', 'g', 't', 'N', 'n'};
+	else
+		badSymbols = {'N', 'n'};
+	
 	for (size_t t = 0; t < nThreads2 - 1; t++) {
 		beg = gen + t * part_size;
 		end = gen + (t + 1ULL) * part_size;
-		th[t] = thread(replaceBadSymbol, beg, end, 'N', paddingChar);
+		th[t] = thread(replaceBadSymbols, beg, end, badSymbols, paddingChar);		
 	}
-	replaceBadSymbol(end, dst, 'N', paddingChar);
+	replaceBadSymbols(end, dst, badSymbols, paddingChar);
 	for (size_t t = 0; t < nThreads2 - 1; t++)
 		th[t].join();
 
-	for (size_t t = 0; t < nThreads2 - 1; t++) {
-		beg = gen + t * part_size;
-		end = gen + (t + 1ULL) * part_size;
-		th[t] = thread(replaceBadSymbol, beg, end, 'n', paddingChar);
-	}
-	replaceBadSymbol(end, dst, 'n', paddingChar);
-	for (size_t t = 0; t < nThreads2 - 1; t++)
-		th[t].join();
 	delete[] th;
 
 	for (auto s : seq) {
@@ -1770,26 +1858,52 @@ SequenceVector2 readBlock(int thID, ifstream& f, BlockItem& bi, const char paddi
 		char* startPtr = dst;
 		*dst++ = paddingChar;  //padding char at the begin to make indexing matches from 1
 
-		while (true) { //scanning the sequence
-			while (*src == eolChar1 || *src == eolChar2) {
+		if (ignoreLowercaseBases == false){
+			while (true) { //scanning the sequence
+				while (*src == eolChar1 || *src == eolChar2) {
+					if (src == lastChar)
+						break;
+					++src;
+				}
 				if (src == lastChar)
 					break;
-				++src;
-			}
-			if (src == lastChar)
-				break;
 
-			uint64_t temp2; //scan 8 bytes at once
-			memcpy(&temp2, src, 8);
-			while ((temp2 & 0x4040404040404040) == 0x4040404040404040) {
-				temp2 = temp2 & 0xDFDFDFDFDFDFDFDF;
-				memcpy(dst, &temp2, 8);
-				dst += 8;
-				src += 8;
+				uint64_t temp2; //scan 8 bytes at once
 				memcpy(&temp2, src, 8);
+				while ((temp2 & 0x4040404040404040) == 0x4040404040404040) {
+					temp2 = temp2 & 0xDFDFDFDFDFDFDFDF;
+					memcpy(dst, &temp2, 8);
+					dst += 8;
+					src += 8;
+					memcpy(&temp2, src, 8);
+				}
+				while (((*src) & (char)0x40) == (char)0x40) {
+					*dst++ = (*src++) & (char)0xDF;
+				}
 			}
-			while (((*src) & (char)0x40) == (char)0x40) {
-				*dst++ = (*src++) & (char)0xDF;
+		}
+		else {
+			while (true) { //scanning the sequence
+				while (*src == eolChar1 || *src == eolChar2) {
+					if (src == lastChar)
+						break;
+					++src;
+				}
+				if (src == lastChar)
+					break;
+				uint64_t temp2; //scan 8 bytes at once
+				memcpy(&temp2, src, 8);
+				while ((temp2 & 0x4040404040404040) == 0x4040404040404040) {
+					//temp2 = temp2 & 0xDFDFDFDFDFDFDFDF;
+					memcpy(dst, &temp2, 8);
+					dst += 8;
+					src += 8;
+					memcpy(&temp2, src, 8);
+				}
+				while (((*src) & (char)0x40) == (char)0x40) {
+					//*dst++ = (*src++) & (char)0xDF;
+					*dst++ = *src++;
+				}
 			}
 		}
 		seqSize = dst - startPtr;
@@ -1799,6 +1913,8 @@ SequenceVector2 readBlock(int thID, ifstream& f, BlockItem& bi, const char paddi
 	if (removeNs == true) {
 		replaceBadSymbol(gen, dst, 'N', paddingChar);
 		replaceBadSymbol(gen, dst, 'n', paddingChar);
+		if (ignoreLowercaseBases)
+			replaceBadSymbols(gen, dst, { 'a','c','g','t' }, paddingChar);
 	}
 
 	return sv3;
@@ -2022,5 +2138,18 @@ int main(int argc, char* argv[]) {
 		}
 	deleteReading(rGenome);
 	*v1logger << "Time of deleting = " << stopwatch.stop() << "\nTotal time = " << stopwatch.totalTime() << "\nFINISHED\n\n";
+
+#if dumptimer == 1
+	double sortingTotal = 0.0;
+	double dumpingTotal = 0.0;
+	for (int thID = 0; thID < nThreads; ++thID) {
+		sortingTotal += sortingWatch[thID].totalTime();
+		dumpingTotal += dumpWatch[thID].totalTime();
+	}
+
+	*v1logger << "Time of sorting (all threads) = " << sortingTotal << "\n";
+	*v1logger << "Time of dumping (all threads) = " << dumpingTotal << "\n\n";
+#endif
+
 	return 0;
 }
