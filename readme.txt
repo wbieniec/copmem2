@@ -49,13 +49,14 @@ and the optional ones are:
   -mf - switches to the memory-frugal mode. It reduces the number of bits holding the hash from 29 to 28, the textual buffer size is reduced from 2^24 to 2^22 bytes and may reduce the seed size (K) compared to copmem (see the function processCmd in copMEM2.cpp for details).
 
 Note that the switches -t and -mf were not available in copmem!
-
+  -ilb} -- ignore lowercase bases. Not used by default (i.e., lowercase bases are NOT ignored). When set, all lowercase symbols will be treated as N
+  
 The list of all parameters is available after ./copmem2 -h. Some of those, not listed above, may be used as diagnostic and for tuning the application in terms of speed for some datasets, yet are not normally needed.
 
 
 Credits:
 ========
-* fmt library (https://github.com/fmtlib/fmt, maintained by Victor Zverovich (vitaut) and Jonathan Müller (foonathan)),
+* fmt library (https://github.com/fmtlib/fmt, maintained by Victor Zverovich (vitaut) and Jonathan MÃ¼ller (foonathan)),
 * xxHash32 and xxHash64 (Yann Collet),
 * MetroHash64 (J. Andrew Rogers),
 * CityHash64 (Google),
