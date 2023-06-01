@@ -28,6 +28,7 @@
 * ================================================================= */
 
 #pragma once
+#include <vector>
 void reverseComplement(char* start, const char* lut, const size_t N);
 void prepareComplement(char* complement, const char paddingChar);
 void replaceBadSymbol(char* gen, char* dst, const char symbol, const char paddingChar);
