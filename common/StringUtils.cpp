@@ -29,7 +29,7 @@
 #include <algorithm>
 #include <cstring>
 #include <string>
-
+#include <vector>
 
 void reverseComplement(char* start, const char* lut, const size_t N) {
 	char* left = start + 1; // sequence starts from paddingChar
