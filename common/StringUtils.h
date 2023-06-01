@@ -31,6 +31,7 @@
 void reverseComplement(char* start, const char* lut, const size_t N);
 void prepareComplement(char* complement, const char paddingChar);
 void replaceBadSymbol(char* gen, char* dst, const char symbol, const char paddingChar);
+void replaceBadSymbols(char* gen, char* dst, std::vector<char> symbols, const char paddingChar);
 uint32_t int2cstr(char* tmpbuf, char* buf, uint32_t n);
 char* int2cstr_c(char* tmpbuf, char* buf, uint32_t n);
 char* int2cstr_t(char* tmpbuf, char* buf, uint32_t n);
