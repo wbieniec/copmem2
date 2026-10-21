@@ -1,39 +1,143 @@
-CPP = g++
-FLAGS  = -march=native -O3 -funroll-loops
-FLAGS1  = -march=native -O3 -funroll-loops -pthread
+CXX := g++
 
+TARGET := copmem2
+MEMFILL := memoryfill
 
-MemoryFill.o: MemoryFill.src/MemoryFill.cpp
-	$(CPP) -c $(FLAGS) MemoryFill.src/MemoryFill.cpp -o MemoryFill.src/MemoryFill.o
+SRC_COPMEM := \
+    CopMEM2.src/CopMEM2.cpp \
+    common/StringUtils.cpp \
+    common/StopWatch.cpp \
+    common/city.cpp \
+    common/metrohash64.cpp \
+    fmt/format.cc
 
+SRC_MEMFILL := \
+    MemoryFill.src/MemoryFill.cpp
 
-MemoryFill: MemoryFill.o
-	$(CPP) $(FLAGS) MemoryFill.src/MemoryFill.o -o memoryfill
+INCLUDES := \
+    -Icommon \
+    -Ifmt
 
-format.o: fmt/format.cc fmt/format.h fmt/format.h fmt/format-inl.h fmt/core.h
-	$(CPP) $(FLAGS) -c fmt/format.cc -o fmt/format.o
+COMMON_FLAGS := \
+    -std=c++17 \
+    -pthread \
+    $(INCLUDES)
 
-common-xxhash.o: common/xxhash.c common/xxhash.h
-	$(CPP) $(FLAGS) -c common/xxhash.c -o common/xxhash.o
+RELEASE_FLAGS := \
+    -march=native \
+    -O3 \
+    -funroll-loops \
+    -DNDEBUG
 
-common-city.o: common/city.cpp
-	$(CPP) $(FLAGS) -c common/city.cpp -o common/city.o
+DEBUG_FLAGS := \
+    -O0 \
+    -g3 \
+    -ggdb3 \
+    -fno-omit-frame-pointer
 
-common-metrohash64.o: common/metrohash64.cpp
-	$(CPP) $(FLAGS) -c common/metrohash64.cpp -o common/metrohash64.o
+LDFLAGS := -pthread
 
-common-StopWatch.o: common/StopWatch.cpp common/StopWatch.h
-	$(CPP) $(FLAGS) -c common/StopWatch.cpp -o common/StopWatch.o
+###########################################################################
+# Release configuration
+###########################################################################
 
-common-StringUtils.o: common/StringUtils.cpp common/StringUtils.h
-	$(CPP) $(FLAGS) -c common/StringUtils.cpp -o common/StringUtils.o
+RELEASE_DIR := x64/Release
+RELEASE_OBJ := $(RELEASE_DIR)/obj
 
-copmem2: format.o common-xxhash.o common-xxhash.o common-city.o common-metrohash64.o common-StopWatch.o common-StringUtils.o CopMEM2.src/CopMEM2.cpp
-	$(CPP) $(FLAGS1) CopMEM2.src/CopMEM2.cpp fmt/format.o common/StopWatch.o common/metrohash64.o common/city.o common/StringUtils.o -o copmem2
+RELEASE_COPMEM_OBJ := \
+    $(RELEASE_OBJ)/CopMEM2.src/CopMEM2.o \
+    $(RELEASE_OBJ)/common/StringUtils.o \
+    $(RELEASE_OBJ)/common/StopWatch.o \
+    $(RELEASE_OBJ)/common/city.o \
+    $(RELEASE_OBJ)/common/metrohash64.o \
+    $(RELEASE_OBJ)/fmt/format.o
 
+RELEASE_MEMFILL_OBJ := \
+    $(RELEASE_OBJ)/MemoryFill.src/MemoryFill.o
+
+###########################################################################
+# Debug configuration
+###########################################################################
+
+DEBUG_DIR := x64/Debug
+DEBUG_OBJ := $(DEBUG_DIR)/obj
+
+DEBUG_COPMEM_OBJ := \
+    $(DEBUG_OBJ)/CopMEM2.src/CopMEM2.o \
+    $(DEBUG_OBJ)/common/StringUtils.o \
+    $(DEBUG_OBJ)/common/StopWatch.o \
+    $(DEBUG_OBJ)/common/city.o \
+    $(DEBUG_OBJ)/common/metrohash64.o \
+    $(DEBUG_OBJ)/fmt/format.o
+
+DEBUG_MEMFILL_OBJ := \
+    $(DEBUG_OBJ)/MemoryFill.src/MemoryFill.o
+
+###########################################################################
+# Default target
+###########################################################################
+
+all: release
+
+###########################################################################
+# Release
+###########################################################################
+
+release: CXXFLAGS := $(COMMON_FLAGS) $(RELEASE_FLAGS)
+release: $(RELEASE_DIR)/$(TARGET) $(RELEASE_DIR)/$(MEMFILL)
+
+$(RELEASE_DIR)/$(TARGET): $(RELEASE_COPMEM_OBJ)
+	@mkdir -p $(dir $@)
+	$(CXX) $^ -o $@ $(LDFLAGS)
+
+$(RELEASE_DIR)/$(MEMFILL): $(RELEASE_MEMFILL_OBJ)
+	@mkdir -p $(dir $@)
+	$(CXX) $^ -o $@ $(LDFLAGS)
+
+###########################################################################
+# Debug
+###########################################################################
+
+debug: CXXFLAGS := $(COMMON_FLAGS) $(DEBUG_FLAGS)
+debug: $(DEBUG_DIR)/$(TARGET) $(DEBUG_DIR)/$(MEMFILL)
+
+$(DEBUG_DIR)/$(TARGET): $(DEBUG_COPMEM_OBJ)
+	@mkdir -p $(dir $@)
+	$(CXX) $^ -o $@ $(LDFLAGS)
+
+$(DEBUG_DIR)/$(MEMFILL): $(DEBUG_MEMFILL_OBJ)
+	@mkdir -p $(dir $@)
+	$(CXX) $^ -o $@ $(LDFLAGS)
+
+###########################################################################
+# Release object rules
+###########################################################################
+
+$(RELEASE_OBJ)/%.o: %.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(RELEASE_OBJ)/%.o: %.cc
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+###########################################################################
+# Debug object rules
+###########################################################################
+
+$(DEBUG_OBJ)/%.o: %.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(DEBUG_OBJ)/%.o: %.cc
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+###########################################################################
+# Clean
+###########################################################################
 
 clean:
-	rm -R -f *.o copmem memoryfill
-	rm -R -f *.o common/*.o fmt/*.o MemoryFill.src/*.o CopMEM.src/*.o CopMEM2.src/*.o copmem copmem2 memoryfill
+	rm -rf x64
 
-all: copmem2 MemoryFill
+.PHONY: all release debug clean
