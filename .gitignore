@@ -1,4 +1,27 @@
+# CMake / Ninja - generated files and dirs
+out/
+build/
+cmake-build-*/
+
+# CMake cache and temp files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+build.ninja
+.ninja_deps
+.ninja_log
+
+# Visual Studio - locall settings and cache
 .vs/
-x64/
-CopMEM2.src/x64/
-MemoryFill.src/x64
+*.user
+*.suo
+*.VC.db
+*.VC.VC.opendb
+ipch/
+
+# binaries
+*.obj
+*.o
+*.pdb
+*.ilk
+*.exe
